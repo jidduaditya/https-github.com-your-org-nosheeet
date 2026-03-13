@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment — never commit secrets
+backend/.env
+frontend/.env
+
+# Testcontainers / test artifacts
+backend/.test-container.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
