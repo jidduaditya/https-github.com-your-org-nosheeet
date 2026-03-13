@@ -1,0 +1,10 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm ci --prefix backend && npm run build --prefix backend"
+
+[deploy]
+startCommand = "node backend/dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
