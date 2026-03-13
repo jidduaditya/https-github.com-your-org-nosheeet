@@ -1,0 +1,8 @@
+{
+  "name": "nosheeet",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm ci --prefix backend && npm run build --prefix backend",
+    "start": "node backend/dist/index.js"
+  }
+}
