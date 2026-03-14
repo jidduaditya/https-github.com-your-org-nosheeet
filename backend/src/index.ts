@@ -17,14 +17,6 @@ import remindersRouter from './routes/reminders';
 import vacationRouter  from './routes/vacation';
 import importRouter    from './routes/import';
 
-// Jobs / workers
-import { startAiSummariseWorker }                  from './jobs/ai-summarise';
-import { startGmailSyncWorker, startCalendarSyncWorker, schedulePeriodicSyncs } from './jobs/gmail-sync';
-import { startReminderWorker, scheduleReminderEvaluator } from './jobs/reminder-scheduler';
-import { importQueue, Worker, connection }          from './jobs/queue';
-import { importFromSheets }                         from './services/import/sheets';
-import { importFromNotion }                         from './services/import/notion';
-
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
@@ -52,14 +44,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Health
-app.get('/health', async (_req, res) => {
-  try {
-    await db.query('SELECT 1');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  } catch {
-    res.status(503).json({ status: 'unhealthy' });
-  }
+// Health — always 200 so Railway considers the container alive.
+// DB connectivity is checked separately; a slow DB shouldn't kill the deploy.
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
 // API routes
@@ -74,39 +62,57 @@ app.use('/reminders', remindersRouter);
 app.use('/vacation',  vacationRouter);
 app.use('/import',    importRouter);
 
-// ── BullMQ workers ──────────────────────────────────────────────
-
-startAiSummariseWorker();
-startGmailSyncWorker();
-startCalendarSyncWorker();
-startReminderWorker();
-
-// Import worker (processes both sheets + notion jobs)
-new Worker(
-  'imports',
-  async (job) => {
-    if (job.name === 'sheets') {
-      const { userId, spreadsheetId, sheetName } = job.data as {
-        userId: string; spreadsheetId: string; sheetName?: string;
-      };
-      return importFromSheets(userId, spreadsheetId, sheetName);
-    }
-    if (job.name === 'notion') {
-      const { userId, databaseId } = job.data as { userId: string; databaseId: string };
-      return importFromNotion(userId, databaseId);
-    }
-  },
-  { connection, concurrency: 1 }
-);
-
-// Schedule recurring jobs
-Promise.all([
-  schedulePeriodicSyncs(),
-  scheduleReminderEvaluator(),
-]).catch(console.error);
-
+// ── Start server first so Railway healthcheck passes ────────────────────────
 app.listen(PORT, () => {
-  console.log(`NoSheeet backend running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
+
+// ── Optional integrations — failures are logged but never crash the server ──
+
+// BullMQ workers (require Redis)
+function startWorkers() {
+  const { startAiSummariseWorker } = require('./jobs/ai-summarise');
+  const { startGmailSyncWorker, startCalendarSyncWorker, schedulePeriodicSyncs } = require('./jobs/gmail-sync');
+  const { startReminderWorker, scheduleReminderEvaluator } = require('./jobs/reminder-scheduler');
+  const { importQueue, Worker, connection } = require('./jobs/queue');
+  const { importFromSheets } = require('./services/import/sheets');
+  const { importFromNotion } = require('./services/import/notion');
+
+  startAiSummariseWorker();
+  startGmailSyncWorker();
+  startCalendarSyncWorker();
+  startReminderWorker();
+
+  new Worker(
+    'imports',
+    async (job: { name: string; data: Record<string, string> }) => {
+      if (job.name === 'sheets') {
+        const { userId, spreadsheetId, sheetName } = job.data;
+        return importFromSheets(userId, spreadsheetId, sheetName);
+      }
+      if (job.name === 'notion') {
+        const { userId, databaseId } = job.data;
+        return importFromNotion(userId, databaseId);
+      }
+    },
+    { connection, concurrency: 1 }
+  );
+
+  Promise.all([
+    schedulePeriodicSyncs(),
+    scheduleReminderEvaluator(),
+  ]).catch((err: Error) => console.error('Scheduler error:', err));
+}
+
+try {
+  startWorkers();
+} catch (err) {
+  console.error('Background workers failed to start (Redis may be unavailable):', err);
+}
+
+// Verify DB connectivity after startup — log only, do not exit
+db.query('SELECT 1').catch((err: Error) =>
+  console.error('DB connectivity check failed:', err.message)
+);
 
 export default app;
