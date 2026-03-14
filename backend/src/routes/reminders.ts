@@ -25,6 +25,18 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response): Promise<vo
   res.json(result.rows);
 });
 
+// POST /reminders/:id/done — mark reminder as dismissed
+router.post('/:id/done', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const result = await db.query(
+    `UPDATE reminders SET status = 'dismissed', sent_at = NOW()
+     WHERE id = $1 AND user_id = $2
+     RETURNING *`,
+    [req.params.id, req.userId]
+  );
+  if (!result.rows[0]) { res.status(404).json({ error: 'Reminder not found' }); return; }
+  res.json(result.rows[0]);
+});
+
 // POST /reminders/:id/snooze
 router.post('/:id/snooze', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const { duration_hours } = req.body as { duration_hours?: number };

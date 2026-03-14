@@ -138,7 +138,15 @@ router.patch('/:id', requireAuth, async (req: AuthRequest, res: Response): Promi
     }
   }
 
-  res.json(result.rows[0]);
+  // Re-fetch with contact join so the response matches the GET /deals shape
+  const full = await db.query(
+    `SELECT d.*, c.name AS contact_name, c.email AS contact_email,
+            c.phone AS contact_phone, c.primary_channel AS contact_channel, c.tags AS contact_tags
+     FROM deals d JOIN contacts c ON c.id = d.contact_id
+     WHERE d.id = $1`,
+    [id]
+  );
+  res.json(full.rows[0]);
 });
 
 export default router;

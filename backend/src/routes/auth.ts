@@ -92,6 +92,48 @@ router.get('/google/callback', async (req: Request, res: Response): Promise<void
   res.redirect(`${frontendUrl}/auth/callback?token=${jwt}`);
 });
 
+// GET /auth/session — validate current JWT and return user info
+router.get('/session', async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'No token' });
+    return;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const jwt = await import('jsonwebtoken');
+    const payload = jwt.default.verify(token, process.env.JWT_SECRET!) as { userId: string; email: string };
+    const userRes = await db.query('SELECT id, email, name, phone FROM users WHERE id = $1', [payload.userId]);
+    if (!userRes.rows[0]) { res.status(401).json({ error: 'User not found' }); return; }
+    res.json({ user: userRes.rows[0], token });
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+// POST /auth/send-otp — alias for /auth/phone
+router.post('/send-otp', (_req: Request, res: Response) => {
+  res.json({ message: 'OTP sent (dev mode)', otp: '000000' });
+});
+
+// POST /auth/verify-otp — alias for /auth/phone/verify
+router.post('/verify-otp', (req: Request, res: Response): void => {
+  const { phone, otp } = req.body;
+  if (otp !== '000000') { res.status(401).json({ error: 'Invalid OTP' }); return; }
+  db.query(
+    `INSERT INTO users (email, phone) VALUES ($1, $2) ON CONFLICT (phone) DO UPDATE SET phone = EXCLUDED.phone RETURNING id, email`,
+    [`${phone}@phone.nosheeet`, phone]
+  ).then((result) => {
+    const { id, email } = result.rows[0];
+    res.json({ token: issueJwt(id, email), user: { id, email, phone } });
+  }).catch((err: Error) => res.status(500).json({ error: err.message }));
+});
+
+// POST /auth/magic-link — stub (no email provider in MVP)
+router.post('/magic-link', (_req: Request, res: Response) => {
+  res.json({ message: 'Magic link sent (dev mode — check server logs)' });
+});
+
 // POST /auth/phone — stub (dev only, returns mock OTP)
 router.post('/phone', (_req: Request, res: Response) => {
   res.json({ message: 'OTP sent (dev mode)', otp: '000000' });

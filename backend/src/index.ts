@@ -16,14 +16,16 @@ import meetingsRouter  from './routes/meetings';
 import remindersRouter from './routes/reminders';
 import vacationRouter  from './routes/vacation';
 import importRouter    from './routes/import';
+import stubsRouter     from './routes/stubs';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// Origins always allowed (dev + Lovable previews)
+// Origins always allowed (dev + Lovable previews + Lovable project previews)
 const STATIC_ORIGINS = [
   /^https?:\/\/localhost:\d+$/,
   /^https:\/\/([a-z0-9-]+\.)*lovable\.app$/,
+  /^https:\/\/([a-z0-9-]+\.)*lovableproject\.com$/,
 ];
 
 // Additional origins from env — comma-separated, e.g. https://app.nosheeet.com
@@ -56,11 +58,15 @@ app.use('/webhooks',  webhooksRouter);
 app.use('/contacts',  contactsRouter);
 app.use('/deals',     dealsRouter);
 app.use('/channels',  channelsRouter);
-app.use('/merges',    mergesRouter);
+app.use('/merges',         mergesRouter);
+app.use('/merge_requests', mergesRouter); // alias for Lovable frontend
 app.use('/meetings',  meetingsRouter);
 app.use('/reminders', remindersRouter);
 app.use('/vacation',  vacationRouter);
 app.use('/import',    importRouter);
+
+// Stub routes expected by Lovable frontend (permissions, integrations, ai scan)
+app.use('/', stubsRouter);
 
 // ── Start server first so Railway healthcheck passes ────────────────────────
 app.listen(PORT, () => {
