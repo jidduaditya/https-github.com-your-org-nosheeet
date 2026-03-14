@@ -1,13 +1,10 @@
 import { Queue, Worker, QueueOptions } from 'bullmq';
+import { redisConnection } from '../lib/redis';
 
-const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
-const url = new URL(redisUrl);
-
-export const connection = {
-  host: url.hostname,
-  port: parseInt(url.port || '6379', 10),
-  password: url.password || undefined,
-};
+// BullMQ requires a plain options object (host/port/password), not an IORedis
+// instance — passing an external Redis instance causes a type conflict because
+// BullMQ bundles its own ioredis internally.
+export const connection = redisConnection;
 
 const q = (name: string) => new Queue(name, { connection } as QueueOptions);
 
