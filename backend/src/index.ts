@@ -15,8 +15,9 @@ import mergesRouter    from './routes/merges';
 import meetingsRouter  from './routes/meetings';
 import remindersRouter from './routes/reminders';
 import vacationRouter  from './routes/vacation';
-import importRouter    from './routes/import';
-import stubsRouter     from './routes/stubs';
+import importRouter     from './routes/import';
+import stubsRouter      from './routes/stubs';
+import dashboardRouter  from './routes/dashboard';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -63,7 +64,8 @@ app.use('/merge_requests', mergesRouter); // alias for Lovable frontend
 app.use('/meetings',  meetingsRouter);
 app.use('/reminders', remindersRouter);
 app.use('/vacation',  vacationRouter);
-app.use('/import',    importRouter);
+app.use('/import',     importRouter);
+app.use('/dashboard',  dashboardRouter);
 
 // Stub routes expected by Lovable frontend (permissions, integrations, ai scan)
 app.use('/', stubsRouter);
